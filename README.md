@@ -59,5 +59,5 @@ single most common way this setup appears broken.
 | `kustomization.yaml` | **holds the deployed image tag** |
 | `k8s/` | Rollout, Service, HTTPRoute, http→https redirect |
 
-reject this
+reject 
 
