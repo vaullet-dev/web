@@ -58,3 +58,6 @@ single most common way this setup appears broken.
 | `Dockerfile` | nginx + two files |
 | `kustomization.yaml` | **holds the deployed image tag** |
 | `k8s/` | Rollout, Service, HTTPRoute, http→https redirect |
+
+reject this
+
