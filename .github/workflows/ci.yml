@@ -1,0 +1,63 @@
+# Build on push, deploy on commit.
+#
+# This workflow's final act is to write the new image tag back into
+# kustomization.yaml. Argo CD watches this repo and reconciles from there, so
+# the deployed version is always a reviewable git state rather than a side
+# effect of whichever build ran last.
+name: build and publish
+
+on:
+  push:
+    branches: [main]
+    # The tag bump below only touches kustomization.yaml. Without this the
+    # workflow would retrigger itself forever.
+    paths-ignore: [ 'kustomization.yaml' ]
+  workflow_dispatch:
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # to commit the tag bump
+      packages: write     # to push to GHCR
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out the tag
+        id: meta
+        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # No `latest`, no re-tagging. An immutable tag is what makes
+      # "revert the commit" a real rollback: if a tag's contents can change,
+      # the cluster and git can disagree while appearing identical.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/vaullet-dev/web:${{ steps.meta.outputs.tag }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Point the manifests at the new image
+        run: |
+          sed -i "s|newTag: .*|newTag: ${{ steps.meta.outputs.tag }}|" kustomization.yaml
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kustomization.yaml
+          git diff --staged --quiet && echo "no change" && exit 0
+          git commit -m "deploy: web ${{ steps.meta.outputs.tag }} [skip ci]"
+          git push

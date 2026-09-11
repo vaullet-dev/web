@@ -1,0 +1,47 @@
+# nginx serving the site from an image built by CI in this repo.
+#
+# The tag is set by kustomize (see kustomization.yaml) and rewritten by the
+# build workflow, so a new version reaches the cluster as a git commit rather
+# than as a push to a mutable tag.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: web
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    canary:
+      steps:
+        - setWeight: 50
+        - pause: {}      # waits for a human to Promote in the Argo CD UI
+  selector:
+    matchLabels: { app: web }
+  template:
+    metadata:
+      labels: { app: web }
+    spec:
+      containers:
+        - name: nginx
+          image: ghcr.io/vaullet-dev/web
+          ports:
+            - { containerPort: 8080, name: http }
+          volumeMounts:
+            # The root filesystem is read-only, so nginx needs somewhere real to
+            # put its caches and pid file. The content itself is in the image.
+            - { name: cache, mountPath: /var/cache/nginx }
+            - { name: run,   mountPath: /var/run }
+          resources:
+            requests: { cpu: 10m,  memory: 16Mi }
+            limits:   { cpu: 200m, memory: 96Mi }
+          readinessProbe:
+            httpGet: { path: /, port: http }
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+      volumes:
+        - { name: cache, emptyDir: {} }
+        - { name: run,   emptyDir: {} }
