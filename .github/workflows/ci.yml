@@ -1,16 +1,17 @@
-# Build on push, deploy on commit.
+# Build on push, deploy on merge.
 #
-# This workflow's final act is to write the new image tag back into
-# kustomization.yaml. Argo CD watches this repo and reconciles from there, so
-# the deployed version is always a reviewable git state rather than a side
-# effect of whichever build ran last.
+# The workflow never pushes to the default branch — it opens a pull request
+# changing one line, the image tag. That keeps `master` protected with no
+# bypass (GitHub does not let you add the built-in github-actions bot to a
+# ruleset bypass list), and it keeps the ADR-010 property that what is running
+# in the cluster is always a reviewed git state.
 name: build and publish
 
 on:
   push:
-    branches: [main]
-    # The tag bump below only touches kustomization.yaml. Without this the
-    # workflow would retrigger itself forever.
+    branches: [master]
+    # The deploy PR only touches kustomization.yaml. Without this, merging it
+    # would trigger another build, which would open another PR, forever.
     paths-ignore: [ 'kustomization.yaml' ]
   workflow_dispatch:
 
@@ -22,8 +23,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write     # to commit the tag bump
-      packages: write     # to push to GHCR
+      contents: write         # to push the deploy branch
+      pull-requests: write    # to open the PR
+      packages: write         # to push to GHCR
     steps:
       - uses: actions/checkout@v4
 
@@ -39,9 +41,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # No `latest`, no re-tagging. An immutable tag is what makes
-      # "revert the commit" a real rollback: if a tag's contents can change,
-      # the cluster and git can disagree while appearing identical.
+      # No `latest`, no re-tagging. An immutable tag is what makes reverting a
+      # commit a real rollback: if a tag's contents can change, the cluster and
+      # git can disagree while appearing identical.
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -52,12 +54,31 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Point the manifests at the new image
+      - name: Open a deploy pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
-          sed -i "s|newTag: .*|newTag: ${{ steps.meta.outputs.tag }}|" kustomization.yaml
+          set -euo pipefail
+          sed -i "s|newTag: .*|newTag: ${TAG}|" kustomization.yaml
+          if git diff --quiet kustomization.yaml; then
+            echo "tag unchanged — nothing to deploy"; exit 0
+          fi
+
+          BRANCH="deploy/${TAG}"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
           git add kustomization.yaml
-          git diff --staged --quiet && echo "no change" && exit 0
-          git commit -m "deploy: web ${{ steps.meta.outputs.tag }} [skip ci]"
-          git push
+          git commit -m "deploy: web ${TAG}"
+          git push --force origin "$BRANCH"
+
+          # Reuse an open PR for this tag if the job is re-run.
+          if gh pr list --head "$BRANCH" --state open --json number --jq 'length' | grep -qv '^0$'; then
+            echo "pull request already open"; exit 0
+          fi
+
+          gh pr create \
+            --base master --head "$BRANCH" \
+            --title "deploy: web ${TAG}" \
+            --body "$(printf 'Built from %s\n\nImage: `ghcr.io/vaullet-dev/web:%s`\n\nMerging this is the deploy. Argo CD syncs from `master`, then the Rollout goes to 50%% and waits for a Promote in the Argo UI.' "${GITHUB_SHA}" "${TAG}")"
