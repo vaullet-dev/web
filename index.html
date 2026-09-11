@@ -150,7 +150,10 @@
   table.trace{border-collapse:collapse;width:100%;min-width:34rem;font-size:.92rem;font-variant-numeric:tabular-nums}
   table.trace th{text-align:left;font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--cash);
                  padding:.6rem .8rem;border-bottom:2px solid rgba(255,255,255,.2)}
-  table.trace td{padding:.55rem .8rem;border-bottom:1px solid rgba(255,255,255,.08)}
+  /* Set explicitly rather than relying on inheriting the section colour — the
+     rows were rendering near-invisible against the dark panel. */
+  table.trace td{padding:.6rem .8rem;color:#DCDEEA;border-bottom:1px solid rgba(255,255,255,.14)}
+  table.trace tbody tr:hover td{background:rgba(255,255,255,.04)}
   table.trace td:last-child,table.trace th:last-child{text-align:right}
   table.trace tr.bad td{color:var(--debt);font-weight:700}
   pre.sql{font-family:var(--code);font-size:clamp(.78rem,1.5vw,.92rem);line-height:1.7;margin:2rem 0 0;padding:1.3rem 1.5rem;
