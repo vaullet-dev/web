@@ -1,4 +1,5 @@
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vaullet</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -34,13 +35,17 @@
   .num{font-variant-numeric:tabular-nums}
 
   /* ── floating pill nav ────────────────────────────────────────────── */
+  @media(max-width:560px){
+    .pillnav{border-radius:22px;padding:.55rem .9rem;row-gap:.35rem}
+    .pillnav .mark{flex-basis:100%;text-align:center}
+  }
   .navbar{position:fixed;top:1rem;left:0;right:0;z-index:60;display:flex;justify-content:center;pointer-events:none;padding-inline:1rem}
-  .pillnav{pointer-events:auto;display:flex;align-items:center;gap:clamp(.7rem,2vw,1.6rem);flex-wrap:wrap;justify-content:center;
+  .pillnav{pointer-events:auto;display:flex;align-items:center;gap:clamp(.55rem,2vw,1.6rem);flex-wrap:wrap;justify-content:center;
            background:rgba(245,243,239,.72);backdrop-filter:blur(16px);border:1px solid rgba(27,27,46,.08);
            border-radius:999px;padding:.6rem 1.4rem;box-shadow:0 10px 30px rgba(27,27,46,.09)}
   .pillnav .mark{font-family:var(--display);font-weight:700;font-size:1.05rem;color:var(--ink);text-decoration:none;text-transform:lowercase}
   .pillnav .mark i{font-style:normal;color:var(--cash)}
-  .pillnav a.l{font-size:.92rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .18s ease}
+  .pillnav a.l{font-size:clamp(.82rem,2.4vw,.92rem);font-weight:500;color:var(--muted);text-decoration:none;transition:color .18s ease}
   .pillnav a.l:hover{color:var(--ink)}
 
   .btn{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--body);font-weight:700;font-size:.95rem;
@@ -56,10 +61,11 @@
 
   /* ── hero ─────────────────────────────────────────────────────────── */
   .first{min-height:100vh;min-height:100svh;display:grid;grid-template-rows:1fr auto}
+  @media(max-width:760px){.first{min-height:0}}
   .hero{position:relative;text-align:center;overflow:hidden;display:grid;align-content:center;
-        padding-block:clamp(6rem,11vw,8rem) clamp(1.5rem,3vw,2.5rem)}
+        padding-block:clamp(7.5rem,11vw,8rem) clamp(1.5rem,3vw,2.5rem)}
   .watermark{position:absolute;left:50%;top:-.06em;transform:translateX(-50%);font-family:var(--display);font-weight:700;
-             font-size:clamp(5.5rem,15vw,13rem);letter-spacing:-.045em;line-height:.85;color:rgba(47,200,126,.26);
+             font-size:clamp(3.6rem,15vw,13rem);letter-spacing:-.045em;line-height:.85;color:rgba(47,200,126,.26);
              white-space:nowrap;pointer-events:none;user-select:none;text-transform:lowercase}
   .hero h1{position:relative;font-size:clamp(2.3rem,5.6vw,4.3rem);max-width:17ch;margin-inline:auto}
   .hero h1 .g{background:linear-gradient(92deg,var(--cash),var(--referral) 45%,var(--loyalty));
