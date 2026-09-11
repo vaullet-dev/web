@@ -201,6 +201,71 @@
       @keyframes rise{from{opacity:0;transform:translateY(52px) scale(.97)}to{opacity:1;transform:none}}
     }
   }
+
+  /* ── phones ───────────────────────────────────────────────────────────
+     The clamps above are tuned for desktop and bottom out too small on a
+     393px screen: 13.8px card copy, 10.5px tile labels. Raise the floors,
+     tighten the vertical rhythm, and let headings run bigger relative to
+     the viewport than they do on a monitor. */
+  @media (max-width: 680px){
+    :root{ --bay:3.25rem; --r:22px; }
+    body{ font-size:1rem; line-height:1.58 }
+
+    .hero h1{ font-size:clamp(2.5rem,10.5vw,3.4rem); max-width:14ch }
+    .hero .lede{ font-size:1.02rem; max-width:38ch; margin-top:1.1rem }
+    .hero .cta{ margin-top:1.6rem; gap:.6rem }
+    .btn{ padding:.8rem 1.35rem; font-size:.95rem }
+
+    .block h2, .statement{ font-size:clamp(1.8rem,7.6vw,2.5rem); max-width:16ch }
+    .block .sub, .kicker{ font-size:1rem; margin-top:1rem }
+
+    .card{ min-height:0; padding:1.4rem 1.3rem; gap:.8rem }
+    .card h3{ font-size:1.75rem }
+    .card p{ font-size:.98rem; line-height:1.5 }
+    .card .tag{ font-size:.68rem }
+
+    .sec.ink{ margin-inline:.75rem; padding-inline:1.1rem; border-radius:22px }
+
+    .logos{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:.6rem }
+    .logo{ border-radius:16px }
+    .logo b{ font-size:.7rem; bottom:.4rem }
+    .bento{ gap:1rem; margin-top:2rem }
+    .bento .note{ padding:1.4rem 1.3rem }
+    .bento .note p{ font-size:1.15rem; line-height:1.35 }
+
+    .scard{ width:15rem; padding:1.3rem 1.2rem }
+    .scard h3{ font-size:1.05rem }
+    .scard p{ font-size:.92rem }
+    .chip{ font-size:.9rem; padding:.6rem 1.1rem }
+    .ghosttrack span{ font-size:3.4rem; -webkit-text-stroke-width:1.5px }
+    .ghosttrack{ margin-top:2.25rem }
+
+    .panel{ padding:1.2rem }
+    .rows li,.tot{ font-size:1rem; padding:.6rem 0 }
+    .say{ font-size:.92rem }
+    table.trace{ font-size:.95rem }
+    pre.sql{ font-size:.82rem; padding:1.1rem }
+
+    .stats{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:.9rem }
+    .stat{ padding:1.3rem 1.1rem }
+    .stat .n{ font-size:2.6rem }
+    .stat .l{ font-size:.88rem }
+
+    .contact h2{ font-size:clamp(2.9rem,13vw,4rem) }
+    .links{ gap:.6rem; margin-top:2rem }
+    .links a{ font-size:.95rem; padding:.85rem 1.3rem }
+
+    footer .mark{ font-size:1.3rem }
+    footer small{ font-size:.8rem }
+  }
+
+  /* very narrow — one logo row of three is still fine, but the tech tiles
+     and stat pairs need the extra room */
+  @media (max-width: 380px){
+    .logos{ grid-template-columns:repeat(2,minmax(0,1fr)) }
+    .stats{ grid-template-columns:1fr }
+  }
+
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
@@ -381,7 +446,7 @@
 
     <div class="ledger">
       <div class="stage">
-        <canvas id="pour" width="960" height="720" role="img"
+        <canvas id="pour" role="img"
                 aria-label="Animated diagram: a top-up pours into one large cash bucket, which drips through holes in its base into the bonus, loyalty and referral buckets below."></canvas>
         <div class="hint"><span>cash in → grants drip out</span><span id="hint-act">click to top up</span></div>
       </div>
@@ -441,65 +506,81 @@
 (function(){
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var cv=document.getElementById("pour"), ctx=cv.getContext("2d"), W=cv.width, H=cv.height;
+  var cv=document.getElementById("pour"), ctx=cv.getContext("2d");
 
-  /* One big cash bucket on top. Holes in its base feed the three grant buckets
-     below — top-ups arrive as cash, and rewards fall out of it. */
+  /* One big cash bucket on top; holes in its base feed the three grant buckets
+     below. The whole thing is laid out proportionally and redrawn on resize —
+     a fixed pixel grid scaled down to phone width made the labels ~6px tall. */
   var CASH={k:"cash",c:"#2FC87E",f:.55};
   var SUB=[{k:"bonus",c:"#FFD60A",f:.30},{k:"loyalty",c:"#7B61FF",f:.20},{k:"referral",c:"#35C5F0",f:.12}];
-
-  var CX0=168, CW=624, CTOP=126, CBOT=336;                 /* cash bucket */
-  var SW=176, STOP=452, SBOT=636;                          /* grant buckets */
-  var HOLE=[CX0+CW*0.20, CX0+CW*0.50, CX0+CW*0.80];        /* three holes */
   var drops=[];
-  function sx(i){return HOLE[i]-SW/2}
-  function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);
-    ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
+  var W,H,CX0,CW,CTOP,CBOT,SW,STOP,SBOT,HOLE,FS,FSS;
+
+  function layout(){
+    var box = cv.parentElement.getBoundingClientRect();
+    var cssW = Math.max(260, Math.min(box.width || 960, 960));
+    var cssH = cssW * (cssW < 520 ? 1.08 : 0.75);
+    var dpr  = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width  = Math.round(cssW * dpr);
+    cv.height = Math.round(cssH * dpr);
+    cv.style.height = cssH + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    W = cssW; H = cssH;
+
+    CX0 = W*.13; CW = W*.74; CTOP = H*.20; CBOT = H*.50;
+    SW  = W*.27; STOP = H*.64; SBOT = H*.86;
+    HOLE = [W*.235, W*.50, W*.765];
+    /* Labels stay legible at any width instead of scaling into nothing. */
+    FS  = Math.max(12, Math.min(21, W/44));
+    FSS = Math.max(10, Math.min(17, W/56));
+  }
+
+  function rr(x,y,w,h,r){r=Math.min(r,w/2,h/2);ctx.beginPath();ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath()}
 
   function topUp(n){
-    for(var i=0;i<n;i++) drops.push({to:-1,x:W/2+(Math.random()-.5)*80,y:20-Math.random()*70,
-                                     vy:2.4+Math.random()*1.4,r:5+Math.random()*3,c:CASH.c});
+    for(var i=0;i<n;i++) drops.push({to:-1,x:W/2+(Math.random()-.5)*(W*.09),
+      y:H*.03-Math.random()*(H*.08),vy:1.8+Math.random()*1.3,r:Math.max(3,W/190),c:CASH.c});
   }
   function leak(i){
-    drops.push({to:i,x:HOLE[i]+(Math.random()-.5)*8,y:CBOT+6,vy:.9,r:3.5+Math.random()*2.5,c:SUB[i].c});
+    drops.push({to:i,x:HOLE[i]+(Math.random()-.5)*6,y:CBOT+5,vy:.8,r:Math.max(2.5,W/260),c:SUB[i].c});
   }
 
   function draw(){
     ctx.clearRect(0,0,W,H);
+    ctx.textAlign="center";
 
-    /* nozzle */
-    ctx.fillStyle="#1B1B2E"; rr(W/2-58,34,116,15,8); ctx.fill();
-    ctx.textAlign="center"; ctx.font="700 19px Quicksand,sans-serif"; ctx.fillStyle="#6C6E80";
-    ctx.fillText("top-up", W/2, 24);
+    var nw=W*.12, nh=Math.max(9,H*.021);
+    ctx.fillStyle="#1B1B2E"; rr(W/2-nw/2, H*.085, nw, nh, nh/2); ctx.fill();
+    ctx.font="700 "+FSS.toFixed(0)+"px Quicksand,sans-serif"; ctx.fillStyle="#6C6E80";
+    ctx.fillText("top-up", W/2, H*.062);
 
-    /* cash bucket */
     var ch=CBOT-CTOP, cf=ch*Math.min(CASH.f,1);
-    ctx.save(); rr(CX0,CTOP,CW,ch,22); ctx.clip();
+    ctx.save(); rr(CX0,CTOP,CW,ch,Math.min(20,CW*.05)); ctx.clip();
     ctx.fillStyle="rgba(27,27,46,.06)"; ctx.fillRect(CX0,CTOP,CW,ch);
     ctx.fillStyle=CASH.c; ctx.fillRect(CX0,CBOT-cf,CW,cf);
     ctx.restore();
-    ctx.font="700 22px Quicksand,sans-serif"; ctx.fillStyle="#1B1B2E";
-    ctx.fillText("cash", CX0+CW/2, CTOP-16);
-    ctx.font="500 16px 'DM Sans',sans-serif"; ctx.fillStyle="#6C6E80";
-    ctx.fillText(Math.round(CASH.f*100)+"%  withdrawable", CX0+CW/2, CBOT+26);
+    ctx.font="700 "+FS.toFixed(0)+"px Quicksand,sans-serif"; ctx.fillStyle="#1B1B2E";
+    ctx.fillText("cash", CX0+CW/2, CTOP-FS*.55);
+    ctx.font="500 "+FSS.toFixed(0)+"px 'DM Sans',sans-serif"; ctx.fillStyle="#6C6E80";
+    ctx.fillText(Math.round(CASH.f*100)+"% withdrawable", CX0+CW/2, CBOT+FSS*1.5);
 
-    /* the holes, punched out of the base */
     for(var k=0;k<HOLE.length;k++){
-      ctx.fillStyle="#F5F3EF";
-      rr(HOLE[k]-13, CBOT-9, 26, 18, 9); ctx.fill();
+      var hw=Math.max(16,W*.027);
+      ctx.fillStyle="#F5F3EF"; rr(HOLE[k]-hw/2, CBOT-hw*.36, hw, hw*.72, hw*.36); ctx.fill();
     }
 
-    /* grant buckets */
     for(var i=0;i<SUB.length;i++){
-      var b=SUB[i], x=sx(i), h=SBOT-STOP, fh=h*Math.min(b.f,1);
-      ctx.save(); rr(x,STOP,SW,h,18); ctx.clip();
+      var b=SUB[i], x=HOLE[i]-SW/2, h=SBOT-STOP, fh=h*Math.min(b.f,1);
+      ctx.save(); rr(x,STOP,SW,h,Math.min(16,SW*.16)); ctx.clip();
       ctx.fillStyle="rgba(27,27,46,.06)"; ctx.fillRect(x,STOP,SW,h);
       ctx.fillStyle=b.c; ctx.fillRect(x,SBOT-fh,SW,fh);
       ctx.restore();
-      ctx.font="700 18px Quicksand,sans-serif"; ctx.fillStyle="#1B1B2E";
-      ctx.fillText(b.k, x+SW/2, SBOT+30);
-      ctx.font="500 15px 'DM Sans',sans-serif"; ctx.fillStyle="#6C6E80";
-      ctx.fillText(Math.round(b.f*100)+"%  locked", x+SW/2, SBOT+52);
+      ctx.font="700 "+FS.toFixed(0)+"px Quicksand,sans-serif"; ctx.fillStyle="#1B1B2E";
+      ctx.fillText(b.k, x+SW/2, SBOT+FS*1.25);
+      ctx.font="500 "+FSS.toFixed(0)+"px 'DM Sans',sans-serif"; ctx.fillStyle="#6C6E80";
+      ctx.fillText(Math.round(b.f*100)+"%", x+SW/2, SBOT+FS*1.25+FSS*1.35);
     }
 
     for(var j=0;j<drops.length;j++){var d=drops[j];
@@ -509,24 +590,28 @@
   function step(){
     for(var j=drops.length-1;j>=0;j--){
       var d=drops[j];
-      d.vy+=.13; d.y+=d.vy;
+      d.vy+=H*.00018; d.y+=d.vy;
       if(d.to===-1){
         d.x+=((CX0+CW/2)-d.x)*.012;
         if(d.y>=CBOT-(CBOT-CTOP)*Math.min(CASH.f,1)-d.r){ CASH.f=Math.min(1,CASH.f+.010); drops.splice(j,1); }
       }else{
-        var b=SUB[d.to], tg=sx(d.to)+SW/2;
+        var b=SUB[d.to], tg=HOLE[d.to];
         d.x+=(tg-d.x)*.05;
         if(d.y>=SBOT-(SBOT-STOP)*Math.min(b.f,1)-d.r){ b.f=Math.min(1,b.f+.016); drops.splice(j,1); }
       }
+      if(d.y>H+40) drops.splice(j,1);
     }
-    /* cash drips out of the holes while there is any to drip */
     if(CASH.f>.08 && Math.random()<.085){ leak(Math.floor(Math.random()*3)); CASH.f-=.004; }
-    /* everything is spent over time, so the loop never settles */
     CASH.f=Math.max(.05,CASH.f-.0013);
     for(var i=0;i<SUB.length;i++) SUB[i].f=Math.max(.03,SUB[i].f-.0022);
     if(Math.random()<.075) topUp(1);
     draw(); requestAnimationFrame(step);
   }
+
+  layout();
+  var rt; window.addEventListener("resize", function(){
+    clearTimeout(rt); rt=setTimeout(function(){ layout(); draw(); }, 150);
+  });
 
   if(reduce){ draw(); } else { topUp(5); requestAnimationFrame(step); }
 
