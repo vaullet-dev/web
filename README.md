@@ -31,6 +31,7 @@ The tag bump commit carries `[skip ci]`, and the workflow ignores changes to
 
 ## Promoting a deploy
 
+
 A new image goes to half the replicas and then pauses. Open Argo CD at
 **argo.vaullet.dev**, find the `web` Rollout, and use the resource actions:
 
