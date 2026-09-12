@@ -1,4 +1,13 @@
 # The apex and www, on the HTTPS listeners only. Nothing here is ever plaintext.
+#
+# The two backendRefs are what makes the canary real: Argo Rollouts' Gateway API
+# plugin rewrites these weights in place (50/50 at the pause, back to 100/0 when
+# the rollout finishes or is aborted), so a request has a 50% chance of hitting
+# the new version regardless of how many replicas there are.
+#
+# Both refs must live in the SAME rule. The plugin only touches rules that name
+# both the stable and the canary Service and leaves every other rule alone, so
+# splitting them across two rules silently disables the weighting.
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -9,5 +18,10 @@ spec:
     - { name: vaullet, namespace: traefik, kind: Gateway, sectionName: www }
   hostnames: [ vaullet.dev, www.vaullet.dev ]
   rules:
+    # The committed weights are the steady state, not the live ones. Argo CD is
+    # told to ignore drift on them (ignoreDifferences in the gitops repo's
+    # clusters/prod/web.yaml), otherwise selfHeal would yank a canary back to 0%
+    # mid-rollout. Never set both to 0: Gateway API says that is a 503.
     - backendRefs:
-        - { name: web, port: 80 }
+        - { name: web-stable, port: 80, weight: 100 }
+        - { name: web-canary, port: 80, weight: 0 }

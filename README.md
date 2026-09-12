@@ -18,7 +18,8 @@ edit index.html  →  push to main
         Argo CD reconciles the cluster from this repo
                       │
                       ▼
-        Rollout: 50% canary, then it STOPS and waits for Promote
+        Rollout: 50% of REQUESTS to the canary, then it STOPS
+                 and waits for Promote
 ```
 
 **Tags are immutable.** Every build is `sha-<7 chars>`; there is no `latest` and
@@ -31,12 +32,41 @@ The tag bump commit carries `[skip ci]`, and the workflow ignores changes to
 
 ## Promoting a deploy
 
-
-A new image goes to half the replicas and then pauses. Open Argo CD at
+A new image gets **half the requests** and then pauses. Open Argo CD at
 **argo.vaullet.dev**, find the `web` Rollout, and use the resource actions:
 
 - **promote-full** — send it to everyone
 - **abort** — stop and keep the previous version serving
+
+## How the 50% is actually 50%
+
+The split happens in Traefik, not in the replica count. `k8s/httproute.yaml`
+carries two weighted backends, and Argo Rollouts' [Gateway API
+plugin](https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-gatewayapi)
+rewrites those weights as the rollout moves:
+
+| | `web-stable` | `web-canary` |
+|---|---|---|
+| at rest | 100 | 0 |
+| paused at the canary step | 50 | 50 |
+| after promote-full / abort | 100 | 0 |
+
+That distinction matters. A canary with no traffic routing splits by pods, so at
+`replicas: 2` every weight from 26 to 74 means exactly the same thing — one pod —
+and which pod you reach depends on kube-proxy, per connection.
+
+Two consequences worth knowing before debugging:
+
+- **The live HTTPRoute will not match git during a rollout.** It is supposed to
+  differ. The Argo CD Application ignores `.spec.rules[].backendRefs[].weight`
+  and the plugin's `rollouts.argoproj.io/gatewayapi-canary` label, and syncs with
+  `RespectIgnoreDifferences=true` so a sync mid-canary does not reset the split.
+- **Both backendRefs must stay in one rule.** The plugin only rewrites rules that
+  name both Services; split them up and the weighting silently stops happening
+  while everything still looks healthy.
+
+`web-canary` has no endpoints when nothing is rolling out — the canary ReplicaSet
+is scaled to zero. That is the resting state, not a fault.
 
 ## The registry package must be public
 
@@ -57,7 +87,6 @@ single most common way this setup appears broken.
 | `nginx.conf` | server config, baked into the image |
 | `Dockerfile` | nginx + two files |
 | `kustomization.yaml` | **holds the deployed image tag** |
-| `k8s/` | Rollout, Service, HTTPRoute, http→https redirect |
+| `k8s/` | Rollout, stable + canary Services, weighted HTTPRoute, http→https redirect |
 
-reject 
 
