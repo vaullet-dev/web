@@ -1,7 +1,25 @@
+# Two Services, not one, because the split is done by Traefik on requests rather
+# than by counting pods. Both select the same `app: web` — Argo Rollouts adds a
+# `rollouts-pod-template-hash` to each selector at runtime, pinning web-canary to
+# the new ReplicaSet and web-stable to the old one.
+#
+# Do NOT put that hash label here: the controller owns it, and a hand-written one
+# would send both Services at whichever ReplicaSet happened to match.
 apiVersion: v1
 kind: Service
 metadata:
-  name: web
+  name: web-stable
+spec:
+  selector: { app: web }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+# At rest this Service has zero endpoints: the canary ReplicaSet is scaled to 0
+# until a new image arrives. That is expected, not a broken Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-canary
 spec:
   selector: { app: web }
   ports:
