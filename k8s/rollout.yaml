@@ -11,26 +11,20 @@ spec:
   replicas: 2
   revisionHistoryLimit: 5
   strategy:
-    canary:
-      # Weighted at the Gateway, not by pod count. Without trafficRouting a
-      # "50%" step just means one of two pods and kube-proxy picks per
-      # connection, so the real split follows replica arithmetic rather than the
-      # number in the step -- at replicas: 2, every weight between 26 and 74
-      # behaves identically.
-      stableService: web-stable
-      canaryService: web-canary
-      trafficRouting:
-        plugins:
-          # The key must match the plugin name registered in the controller's
-          # argo-rollouts-config ConfigMap (see the gitops repo,
-          # clusters/prod/argo-rollouts.yaml). A typo here is not a validation
-          # error: the Rollout just reports that no traffic router was found.
-          argoproj-labs/gatewayAPI:
-            httpRoute: web
-            namespace: web
-      steps:
-        - setWeight: 50
-        - pause: {}      # waits for a human to Promote in the Argo CD UI
+    # Blue-green, not canary. Every visitor sees the same version.
+    #
+    # A new image starts a second set of pods next to the running ones. Nothing
+    # is sent to them until all of them are Ready. Then the `web` Service
+    # switches to them in one step, and the old pods are removed 30s later.
+    #
+    # A canary served old and new content side by side and paused for a manual
+    # Promote. Nobody promoted, so the site stayed half old, half new.
+    blueGreen:
+      activeService: web
+      autoPromotionEnabled: true
+      # Gives Traefik time to drop the old endpoints and lets in-flight
+      # requests finish before the old pods go away.
+      scaleDownDelaySeconds: 30
   selector:
     matchLabels: { app: web }
   template:
