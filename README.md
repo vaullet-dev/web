@@ -6,10 +6,14 @@ content itself — `index.html` is hand-written and ships as-is.
 ## How a change reaches production
 
 ```
-edit index.html  →  push to master
+pull request  →  commit messages and title checked, image built but not pushed
                       │
                       ▼
-        GitHub Actions: build image → ghcr.io/vaullet-dev/web:sha-xxxxxxx
+merge to master  →  version worked out from the commit messages
+                      │
+                      ▼
+        GitHub Actions: image → ghcr.io/vaullet-dev/web:X.Y.Z,
+        git tag vX.Y.Z, GitHub release
                       │
                       ▼
         CI opens a pull request changing the tag in kustomization.yaml
@@ -22,8 +26,24 @@ edit index.html  →  push to master
         Ready every request switches to them at once
 ```
 
-**Tags are immutable.** Every build is `sha-<7 chars>`. There is no `latest` and
+**Tags are immutable.** Every release is `X.Y.Z`. There is no `latest` and
 nothing is ever re-tagged, which is what makes `git revert` a real rollback.
+
+## Versions come from commit messages
+
+The same rules as backend-common and wallet-ledger-service, from the same
+`scripts/version.sh`:
+
+| Commit | Release |
+|---|---|
+| `feat!: ...`, `breaking: ...`, or a `BREAKING CHANGE:` footer | major |
+| `feat: ...` / `feature: ...` | minor |
+| `fix: ...`, `patch:`, `perf:`, `refactor:`, `revert:`, `build:`, `deps:`, `security:` | patch |
+| `chore:`, `docs:`, `test:`, `ci:`, `style:`, `deploy:` | nothing, and no deploy |
+
+The level is the highest one since the last `v*` tag, so three fixes are one
+patch release. A pull request fails if a commit or its title does not follow
+this. Run `scripts/version.sh explain` to see what a branch would become.
 
 The workflow ignores changes to `kustomization.yaml`, so merging a deploy PR
 does not trigger another build.
