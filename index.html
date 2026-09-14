@@ -8,7 +8,7 @@
 
 <style>
   :root{
-    --cream:#F5F3EF; --ink:#1B1B2E; --body-ink:#2A2B3D; --muted:#6C6E80; --white:#FFFFFF;
+    --cream:#F4F5F8; --nav:#1B1B2E; --ink:#1B1B2E; --body-ink:#2A2B3D; --muted:#6C6E80; --white:#FFFFFF;
 
     /* the grant types, at full volume */
     --cash:#2FC87E;
@@ -41,12 +41,12 @@
   }
   .navbar{position:fixed;top:1rem;left:0;right:0;z-index:60;display:flex;justify-content:center;pointer-events:none;padding-inline:1rem}
   .pillnav{pointer-events:auto;display:flex;align-items:center;gap:clamp(.55rem,2vw,1.6rem);flex-wrap:wrap;justify-content:center;
-           background:rgba(245,243,239,.72);backdrop-filter:blur(16px);border:1px solid rgba(27,27,46,.08);
+           background:color-mix(in srgb,var(--nav) 76%,transparent);backdrop-filter:blur(16px);border:1px solid rgba(27,27,46,.08);
            border-radius:999px;padding:.6rem 1.4rem;box-shadow:0 10px 30px rgba(27,27,46,.09)}
-  .pillnav .mark{font-family:var(--display);font-weight:700;font-size:1.05rem;color:var(--ink);text-decoration:none;text-transform:lowercase}
+  .pillnav .mark{font-family:var(--display);font-weight:700;font-size:1.05rem;color:var(--cream);text-decoration:none;text-transform:lowercase}
   .pillnav .mark i{font-style:normal;color:var(--cash)}
-  .pillnav a.l{font-size:clamp(.82rem,2.4vw,.92rem);font-weight:500;color:var(--muted);text-decoration:none;transition:color .18s ease}
-  .pillnav a.l:hover{color:var(--ink)}
+  .pillnav a.l{font-size:clamp(.82rem,2.4vw,.92rem);font-weight:500;color:rgba(244,245,248,.68);text-decoration:none;transition:color .18s ease}
+  .pillnav a.l:hover{color:var(--white)}
 
   .btn{display:inline-flex;align-items:center;gap:.5rem;font-family:var(--body);font-weight:700;font-size:.95rem;
        background:var(--ink);color:var(--cream);border:none;border-radius:999px;padding:.9rem 1.7rem;text-decoration:none;cursor:pointer;
@@ -63,10 +63,27 @@
   .first{min-height:100vh;min-height:100svh;display:grid;grid-template-rows:1fr auto}
   @media(max-width:760px){.first{min-height:0}}
   .hero{position:relative;text-align:center;overflow:hidden;display:grid;align-content:center;
-        padding-block:clamp(7.5rem,11vw,8rem) clamp(1.5rem,3vw,2.5rem)}
-  .watermark{position:absolute;left:50%;top:-.06em;transform:translateX(-50%);font-family:var(--display);font-weight:700;
-             font-size:clamp(3.6rem,15vw,13rem);letter-spacing:-.045em;line-height:.85;color:rgba(47,200,126,.26);
+        padding-block:clamp(7.5rem,11vw,8rem) clamp(1.5rem,3vw,2.5rem);
+        /* faint washes of the headline's gradient colours, so the off-white has some life in it */
+        background:
+          radial-gradient(40rem 26rem at 12% 18%,rgba(47,200,126,.16),transparent 70%),
+          radial-gradient(38rem 26rem at 90% 30%,rgba(123,97,255,.13),transparent 70%),
+          radial-gradient(30rem 20rem at 55% 95%,rgba(53,197,240,.10),transparent 70%)}
+  /* the watermark sits behind the headline, centred on it, as texture rather than a second heading */
+  .headline{position:relative}
+  .watermark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:var(--display);font-weight:700;
+             font-size:clamp(3.6rem,15vw,13rem);letter-spacing:-.045em;line-height:.85;color:rgba(47,200,126,.10);
              white-space:nowrap;pointer-events:none;user-select:none;text-transform:lowercase}
+  /* the watermark slides in on load, then drifts sideways and falls behind as the page scrolls.
+     `translate` is separate from `transform`, so the drift adds to the centring instead of replacing it. */
+  @supports (animation-timeline: scroll()){
+    @media (prefers-reduced-motion: no-preference){
+      .watermark{animation:wm-in 1.6s cubic-bezier(.2,.7,.2,1) both, wm-drift linear both;
+                 animation-timeline:auto, scroll(root);animation-range:normal, 0 100svh}
+      @keyframes wm-in{from{opacity:0;transform:translate(-62%,-50%)}}
+      @keyframes wm-drift{to{translate:18vw 40%}}
+    }
+  }
   .hero h1{position:relative;font-size:clamp(2.3rem,5.6vw,4.3rem);max-width:17ch;margin-inline:auto}
   .hero h1 .g{background:linear-gradient(92deg,var(--cash),var(--referral) 45%,var(--loyalty));
               -webkit-background-clip:text;background-clip:text;color:transparent}
@@ -146,9 +163,14 @@
   .legend .st:not(.live){background:var(--white)}
 
   /* ── ghost marquee on the green band ──────────────────────────────── */
-  .ghosttrack{display:flex;gap:2rem;width:max-content;animation:slideL 52s linear infinite;margin-top:3.5rem}
-  .ghosttrack span{font-family:var(--display);font-weight:700;font-size:clamp(4rem,12vw,9rem);line-height:1;text-transform:lowercase;
-                   color:transparent;-webkit-text-stroke:2px rgba(6,48,26,.34);white-space:nowrap}
+  /* Solid tone-on-tone, not outlined: text-stroke traces every overlapping contour inside Quicksand's glyphs,
+     so crossbars and stems showed through each other. The separators are real circles rather than the font's
+     squarish middle dot. Each span ends with its own dot and trailing space, so -50% lands exactly on the
+     second copy and the loop has no jump. */
+  .ghosttrack{display:flex;width:max-content;animation:slideL 52s linear infinite;margin-top:3.5rem;font-size:clamp(4rem,12vw,9rem)}
+  .ghosttrack span{display:flex;align-items:center;gap:.32em;padding-right:.32em;font-family:var(--display);font-weight:700;
+                   line-height:1;text-transform:lowercase;color:rgba(6,48,26,.14);white-space:nowrap}
+  .ghosttrack i{flex:none;width:.2em;height:.2em;border-radius:50%;background:currentColor}
 
   /* ── ledger card ──────────────────────────────────────────────────── */
   .ledger{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,23rem);gap:1.4rem;margin-top:3rem;align-items:stretch}
@@ -255,7 +277,7 @@
     .scard h3{ font-size:1.05rem }
     .scard p{ font-size:.92rem }
     .chip{ font-size:.9rem; padding:.6rem 1.1rem }
-    .ghosttrack span{ font-size:3.4rem; -webkit-text-stroke-width:1.5px }
+    .ghosttrack{ font-size:3.4rem }
     .ghosttrack{ margin-top:2.25rem }
 
     .panel{ padding:1.2rem }
@@ -342,9 +364,11 @@
 
   <div class="first">
   <section class="hero">
-    <div class="watermark" aria-hidden="true">vaullet.</div>
     <div class="wrap">
-      <h1>money that knows <span class="g">what kind</span> of money it is</h1>
+      <div class="headline">
+        <div class="watermark" aria-hidden="true">vaullet.</div>
+        <h1>spend like a wallet, <span class="g">keep like a vault</span></h1>
+      </div>
       <p class="lede">
         Top-ups, bonuses, loyalty and referral credit land in separate buckets on one ledger —
         each with its own rules about spending, expiry, and whether it can ever be withdrawn.
@@ -394,8 +418,8 @@
     </div>
     <div class="marquee">
       <div class="ghosttrack" aria-hidden="true">
-        <span>single-tenant · modular · append-only ·</span>
-        <span>single-tenant · modular · append-only ·</span>
+        <span>single-tenant<i></i>modular<i></i>append-only<i></i></span>
+        <span>single-tenant<i></i>modular<i></i>append-only<i></i></span>
       </div>
     </div>
     <div class="marquee" style="margin-top:3rem">
@@ -675,7 +699,7 @@
 
     for(var k=0;k<HOLE.length;k++){
       var hw=Math.max(16,W*.027);
-      ctx.fillStyle="#F5F3EF"; rr(HOLE[k]-hw/2, CBOT-hw*.36, hw, hw*.72, hw*.36); ctx.fill();
+      ctx.fillStyle="#F4F5F8"; rr(HOLE[k]-hw/2, CBOT-hw*.36, hw, hw*.72, hw*.36); ctx.fill();
     }
 
     for(var i=0;i<SUB.length;i++){
