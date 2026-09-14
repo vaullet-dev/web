@@ -11,4 +11,4 @@ resources:
 # Argo CD reconciles the cluster to whatever tag is committed here.
 images:
   - name: ghcr.io/vaullet-dev/web
-    newTag: sha-4ac1a27
+    newTag: sha-3688629
