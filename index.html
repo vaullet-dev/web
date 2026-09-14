@@ -163,9 +163,14 @@
   .legend .st:not(.live){background:var(--white)}
 
   /* ── ghost marquee on the green band ──────────────────────────────── */
-  .ghosttrack{display:flex;gap:2rem;width:max-content;animation:slideL 52s linear infinite;margin-top:3.5rem}
-  .ghosttrack span{font-family:var(--display);font-weight:700;font-size:clamp(4rem,12vw,9rem);line-height:1;text-transform:lowercase;
-                   color:transparent;-webkit-text-stroke:2px rgba(6,48,26,.34);white-space:nowrap}
+  /* Solid tone-on-tone, not outlined: text-stroke traces every overlapping contour inside Quicksand's glyphs,
+     so crossbars and stems showed through each other. The separators are real circles rather than the font's
+     squarish middle dot. Each span ends with its own dot and trailing space, so -50% lands exactly on the
+     second copy and the loop has no jump. */
+  .ghosttrack{display:flex;width:max-content;animation:slideL 52s linear infinite;margin-top:3.5rem;font-size:clamp(4rem,12vw,9rem)}
+  .ghosttrack span{display:flex;align-items:center;gap:.32em;padding-right:.32em;font-family:var(--display);font-weight:700;
+                   line-height:1;text-transform:lowercase;color:rgba(6,48,26,.14);white-space:nowrap}
+  .ghosttrack i{flex:none;width:.2em;height:.2em;border-radius:50%;background:currentColor}
 
   /* ── ledger card ──────────────────────────────────────────────────── */
   .ledger{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,23rem);gap:1.4rem;margin-top:3rem;align-items:stretch}
@@ -272,7 +277,7 @@
     .scard h3{ font-size:1.05rem }
     .scard p{ font-size:.92rem }
     .chip{ font-size:.9rem; padding:.6rem 1.1rem }
-    .ghosttrack span{ font-size:3.4rem; -webkit-text-stroke-width:1.5px }
+    .ghosttrack{ font-size:3.4rem }
     .ghosttrack{ margin-top:2.25rem }
 
     .panel{ padding:1.2rem }
@@ -413,8 +418,8 @@
     </div>
     <div class="marquee">
       <div class="ghosttrack" aria-hidden="true">
-        <span>single-tenant · modular · append-only ·</span>
-        <span>single-tenant · modular · append-only ·</span>
+        <span>single-tenant<i></i>modular<i></i>append-only<i></i></span>
+        <span>single-tenant<i></i>modular<i></i>append-only<i></i></span>
       </div>
     </div>
     <div class="marquee" style="margin-top:3rem">
