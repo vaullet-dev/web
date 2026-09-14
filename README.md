@@ -81,7 +81,8 @@ single most common way this setup appears broken.
 | Path | What |
 |---|---|
 | `index.html` | the entire site |
-| `favicon.svg` | tab icon |
+| `favicon.svg` | tab icon, from `brand/` |
+| `apple-touch-icon.png` | home-screen icon on iOS, 180×180, from `brand/` |
 | `nginx.conf` | server config, baked into the image |
 | `Dockerfile` | nginx + two files |
 | `kustomization.yaml` | **holds the deployed image tag** |
