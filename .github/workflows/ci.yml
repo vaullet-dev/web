@@ -1,41 +1,149 @@
-# Build on push, deploy on merge.
+# Check on pull request, release on merge, deploy by pull request.
 #
-# The workflow never pushes to the default branch — it opens a pull request
-# changing one line, the image tag. That keeps `master` protected with no
-# bypass (GitHub does not let you add the built-in github-actions bot to a
-# ruleset bypass list), and it keeps the ADR-010 property that what is running
-# in the cluster is always a reviewed git state.
-name: build and publish
+# The version comes from the commit messages, the same way as backend-common and
+# wallet-ledger-service: `fix:` is a patch, `feat:` a minor, `feat!:` or `breaking:` a
+# major, and chore/docs/test/ci/style/deploy release nothing. scripts/version.sh is the
+# one place that decides.
+#
+# A release is an image tagged X.Y.Z, a git tag vX.Y.Z, and a GitHub release. The
+# workflow then opens a pull request changing one line, the image tag. It never pushes
+# to the default branch: that keeps `master` protected with no bypass (GitHub does not
+# let you add the built-in github-actions bot to a ruleset bypass list), and it keeps the
+# ADR-010 property that what is running in the cluster is always a reviewed git state.
+name: CI
 
 on:
   push:
     branches: [master]
     # The deploy PR only touches kustomization.yaml. Without this, merging it
-    # would trigger another build, which would open another PR, forever.
+    # would trigger another release, which would open another PR, forever.
     paths-ignore: [ 'kustomization.yaml' ]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
   group: web-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded pull request build is not worth finishing. A release in flight is:
+  # cancelling between the image push and the git tag leaves an image with no tag, and
+  # the next run would compute the same number again.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+permissions:
+  contents: read
 
 jobs:
-  publish:
+  # An unreadable commit message contributes nothing to the version, and "nothing" looks
+  # the same as a deliberate chore. The pull request is the last point where fixing it is cheap.
+  commits:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write         # to push the deploy branch
-      pull-requests: write    # to open the PR
-      packages: write         # to push to GHCR
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Work out the tag
-        id: meta
-        run: echo "tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Every commit declares its release level
+        run: scripts/version.sh lint "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+
+      # On a squash merge the pull request title becomes the only commit on master, so
+      # the title has to parse even when every branch commit already does.
+      - name: The pull request title declares its release level
+        run: scripts/version.sh lint-subject "$PR_TITLE"
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+
+  # The image is built on every pull request, at the pre-release version it would carry,
+  # but not pushed. A broken Dockerfile or nginx.conf fails here, not after merge.
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # version.sh reads the tags and the whole log since the last one.
+          fetch-depth: 0
+
+      - name: Work out this build's version
+        id: version
+        run: |
+          echo "version=$(scripts/version.sh)" >> "$GITHUB_OUTPUT"
+          scripts/version.sh explain | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
 
       - uses: docker/setup-buildx-action@v3
 
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: ghcr.io/vaullet-dev/web:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+
+  release:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write         # to push the git tag, the release, and the deploy branch
+      pull-requests: write    # to open the deploy PR
+      packages: write         # to push to GHCR
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A re-run of the same commit finds its own tag already there. That is not a second
+      # release computing the same number, so it skips straight to the deploy PR instead
+      # of failing; the image and the tag from the first run are reused.
+      - name: Work out the version from the commit log
+        id: version
+        run: |
+          BUMP="$(scripts/version.sh bump)"
+          scripts/version.sh explain | tee -a "$GITHUB_STEP_SUMMARY"
+
+          AT_HEAD="$(git tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' | head -1)"
+          if [ -n "$AT_HEAD" ]; then
+            {
+              echo "publish=false"
+              echo "deploy=true"
+              echo "version=${AT_HEAD#v}"
+              echo "tag=$AT_HEAD"
+            } >> "$GITHUB_OUTPUT"
+            echo "$AT_HEAD already points at this commit. Reusing it."
+            exit 0
+          fi
+
+          if [ "$BUMP" = "none" ]; then
+            echo "Only chore/docs/test/ci/style/deploy commits since the last release. Nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          VERSION="$(scripts/version.sh)"
+          TAG="$(scripts/version.sh tag)"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::Tag $TAG already exists on another commit. Two releases computed the same number."
+            exit 1
+          fi
+          {
+            echo "publish=true"
+            echo "deploy=true"
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "bump=$BUMP"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          VERSION_BRANCH: ${{ github.ref_name }}
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.version.outputs.publish == 'true'
+
       - uses: docker/login-action@v3
+        if: steps.version.outputs.publish == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -45,40 +153,66 @@ jobs:
       # commit a real rollback: if a tag's contents can change, the cluster and
       # git can disagree while appearing identical.
       - uses: docker/build-push-action@v6
+        if: steps.version.outputs.publish == 'true'
         with:
           context: .
           push: true
-          tags: ghcr.io/vaullet-dev/web:${{ steps.meta.outputs.tag }}
+          tags: ghcr.io/vaullet-dev/web:${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
           provenance: true
           sbom: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Tag after the image exists. A tag written first would name a version that may never
+      # have been pushed, and the next run would compute the version after it.
+      - name: Tag the release
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG ($BUMP)"
+          git push origin "$TAG"
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          BUMP: ${{ steps.version.outputs.bump }}
+
+      - name: Create the GitHub release
+        if: steps.version.outputs.publish == 'true'
+        run: gh release create "$TAG" --title "$TAG" --generate-notes
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Open a deploy pull request
+        if: steps.version.outputs.deploy == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          sed -i "s|newTag: .*|newTag: ${TAG}|" kustomization.yaml
+          sed -i "s|newTag: .*|newTag: ${VERSION}|" kustomization.yaml
           if git diff --quiet kustomization.yaml; then
-            echo "tag unchanged — nothing to deploy"; exit 0
+            echo "tag unchanged, nothing to deploy"; exit 0
           fi
 
-          BRANCH="deploy/${TAG}"
+          BRANCH="deploy/v${VERSION}"
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add kustomization.yaml
-          git commit -m "deploy: web ${TAG}"
+          # `deploy:` is a no-release type, so this commit never moves the version.
+          git commit -m "deploy: web ${VERSION}"
           git push --force origin "$BRANCH"
 
-          # Reuse an open PR for this tag if the job is re-run.
+          # Reuse an open PR for this version if the job is re-run.
           if gh pr list --head "$BRANCH" --state open --json number --jq 'length' | grep -qv '^0$'; then
             echo "pull request already open"; exit 0
           fi
 
           gh pr create \
             --base master --head "$BRANCH" \
-            --title "deploy: web ${TAG}" \
-            --body "$(printf 'Built from %s\n\nImage: `ghcr.io/vaullet-dev/web:%s`\n\nMerging this is the deploy. Argo CD syncs from `master`, then the Rollout goes to 50%% and waits for a Promote in the Argo UI.' "${GITHUB_SHA}" "${TAG}")"
+            --title "deploy: web ${VERSION}" \
+            --body "$(printf 'Release [v%s](https://github.com/vaullet-dev/web/releases/tag/v%s), built from %s\n\nImage: `ghcr.io/vaullet-dev/web:%s`\n\nMerging this is the deploy. Argo CD syncs from `master`, the Rollout starts the new pods, and once they are all Ready every request switches to them.' "${VERSION}" "${VERSION}" "${GITHUB_SHA}" "${VERSION}")"
