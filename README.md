@@ -31,7 +31,7 @@ nothing is ever re-tagged, which is what makes `git revert` a real rollback.
 
 ## Versions come from commit messages
 
-The same rules as backend-common and wallet-ledger-service, from the same
+The same rules as backend-common, wallet-ledger-service and wallet-auth-service, from the same
 `scripts/version.sh`:
 
 | Commit | Release |
