@@ -162,6 +162,13 @@
   .legend{display:inline-flex;align-items:center;gap:.4rem;margin-inline:.5rem;white-space:nowrap}
   .legend .st{position:static}
   .legend .st:not(.live){background:var(--white)}
+  /* The gitops layer's way into the running cluster: one link per Argo CD project. */
+  .peek{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .5rem;margin:0;font-size:.86rem;color:var(--muted)}
+  .peek span{margin-right:.2rem}
+  .peek a{padding:.34rem .85rem;border-radius:999px;background:var(--cream);color:var(--ink);font-weight:600;
+          text-decoration:none;transition:background .2s,color .2s}
+  .peek a:hover,.peek a:focus-visible{background:var(--ink);color:var(--cream)}
+  .peek small{flex-basis:100%;font-size:.75rem}
 
   /* ── ghost marquee on the green band ──────────────────────────────── */
   /* Solid tone-on-tone, not outlined: text-stroke traces every overlapping contour inside Quicksand's glyphs,
@@ -523,6 +530,13 @@
             <div class="logo l-cash"     tabindex="0" title="Argo Rollouts deploys this page blue-green: every visitor switches to the new version at once."><i class="st live"></i><svg><use href="#i-argo"/></svg><b>rollouts</b></div>
             <div class="logo l-ink"      tabindex="0" title="Every platform component is a pinned chart version in git."><i class="st live"></i><svg><use href="#i-helm"/></svg><b>helm</b></div>
           </div>
+          <p class="peek">
+            <span>the live cluster, by layer</span>
+            <a href="https://argo.vaullet.dev/applications?proj=infra">infra</a>
+            <a href="https://argo.vaullet.dev/applications?proj=platform">platform</a>
+            <a href="https://argo.vaullet.dev/applications?proj=apps">apps</a>
+            <small>Opens Argo CD, which asks for a sign-in.</small>
+          </p>
         </div>
 
         <div class="layer">
